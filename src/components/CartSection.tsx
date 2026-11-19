@@ -1,16 +1,10 @@
-import { useState } from 'react';
-import {
-  ArrowLeft,
-  Building2,
-  Loader2,
-  Minus,
-  Plus,
-  ShoppingBag,
-  Trash2,
-} from 'lucide-react';
+import { useState, type CSSProperties } from 'react';
+import { ArrowLeft, Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
 import type { Book } from '../types/book';
+import { hueFromString, publisherInitials } from '../utils/cover';
 import { formatBRL } from '../utils/format';
+import { BookCover } from './BookCover';
 
 interface CartSectionProps {
   onBackToSearch: () => void;
@@ -107,7 +101,9 @@ export function CartSection({ onBackToSearch, onSelectBook }: CartSectionProps) 
 
       {totalItems === 0 ? (
         <div className="empty-state">
-          <ShoppingBag size={40} aria-hidden="true" />
+          <span className="empty-icon" aria-hidden="true">
+            <ShoppingBag size={32} />
+          </span>
           <h2>Seu carrinho está vazio</h2>
           <p>
             Busque livros no catálogo da 28ª Festa do Livro da USP e adicione os títulos que deseja
@@ -124,7 +120,13 @@ export function CartSection({ onBackToSearch, onSelectBook }: CartSectionProps) 
               <article key={group.publisher} className="publisher-card">
                 <header className="publisher-card-header">
                   <div className="publisher-title-wrap">
-                    <Building2 size={18} aria-hidden="true" />
+                    <span
+                      className="publisher-avatar"
+                      style={{ '--cover-hue': hueFromString(group.publisher) } as CSSProperties}
+                      aria-hidden="true"
+                    >
+                      {publisherInitials(group.publisher)}
+                    </span>
                     <h2>{group.publisher}</h2>
                     <span className="publisher-count">
                       {group.totalQuantity} {group.totalQuantity === 1 ? 'livro' : 'livros'}
@@ -139,6 +141,7 @@ export function CartSection({ onBackToSearch, onSelectBook }: CartSectionProps) 
                 <ul className="publisher-items">
                   {group.items.map((item) => (
                     <li key={item.id} className="cart-item">
+                      <BookCover title={item.name} publisher={item.publisher} size="sm" />
                       <div className="cart-item-info">
                         <h3>
                           <button

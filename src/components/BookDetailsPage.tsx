@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft,
-  BookOpen,
   Building2,
   ExternalLink,
   Loader2,
@@ -18,6 +17,7 @@ import {
 import { useCart } from '../contexts/CartContext';
 import type { Book } from '../types/book';
 import { calcDiscountPercent, formatBRL } from '../utils/format';
+import { BookCover } from './BookCover';
 
 interface BookDetailsPageProps {
   book: Book;
@@ -142,12 +142,12 @@ export function BookDetailsPage({
                 onError={() => setCoverFailed(true)}
               />
             ) : (
-              <div className="book-cover-placeholder" aria-hidden="true">
-                <span className="book-cover-publisher">{book.publisher}</span>
-                <BookOpen size={36} />
-                <strong className="book-cover-title">{book.name}</strong>
-                <span className="book-cover-author">{book.authors}</span>
-              </div>
+              <BookCover
+                title={book.name}
+                publisher={book.publisher}
+                authors={book.authors}
+                size="lg"
+              />
             )}
           </div>
 

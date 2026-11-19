@@ -16,6 +16,7 @@ export function Header({ activeTab, onChangeTab, onOpenAuth }: HeaderProps) {
   const { totalItems, totalPrice } = useCart();
 
   return (
+    <>
     <header className="app-header">
       <div className="container header-inner">
         <button
@@ -115,6 +116,31 @@ export function Header({ activeTab, onChangeTab, onOpenAuth }: HeaderProps) {
         </div>
       </div>
     </header>
+
+    <nav className="bottom-nav" aria-label="Navegação principal (celular)">
+      <button
+        type="button"
+        className={`bottom-nav-item ${activeTab === 'search' ? 'is-active' : ''}`}
+        aria-current={activeTab === 'search' ? 'page' : undefined}
+        onClick={() => onChangeTab('search')}
+      >
+        <Search size={20} aria-hidden="true" />
+        <span>Buscar</span>
+      </button>
+      <button
+        type="button"
+        className={`bottom-nav-item ${activeTab === 'cart' ? 'is-active' : ''}`}
+        aria-current={activeTab === 'cart' ? 'page' : undefined}
+        onClick={() => onChangeTab('cart')}
+      >
+        <span className="bottom-nav-icon">
+          <ShoppingBag size={20} aria-hidden="true" />
+          {totalItems > 0 && <span className="bottom-nav-badge">{totalItems}</span>}
+        </span>
+        <span>Carrinho</span>
+      </button>
+    </nav>
+    </>
   );
 }
 

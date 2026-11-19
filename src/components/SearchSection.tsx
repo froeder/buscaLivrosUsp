@@ -1,28 +1,32 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   BookMarked,
-  Building2,
   Check,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Loader2,
+  Minus,
   Plus,
   Search,
-  UserPen,
+  Sparkles,
+  X,
 } from 'lucide-react';
 import { SEARCH_FILTER_OPTIONS, searchBooks } from '../services/booksApi';
 import { useCart } from '../contexts/CartContext';
 import type { ApiPaginationMeta, Book, SearchFilterKey } from '../types/book';
 import { calcDiscountPercent, formatBRL } from '../utils/format';
+import { BookCover } from './BookCover';
 
 interface SearchSectionProps {
   onGoToCart: () => void;
   onSelectBook: (book: Book) => void;
 }
 
+const SUGGESTIONS = ['Poesia', 'Filosofia', 'Romance', 'História', 'Direito', 'Teatro'];
+const SKELETON_COUNT = 6;
+
 export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) {
-  const { addBook, getItemQuantity, error: cartError } = useCart();
+  const { addBook, updateQuantity, getItemQuantity, totalItems, error: cartError } = useCart();
 
   const [inputValue, setInputValue] = useState('');
   const [filter, setFilter] = useState<SearchFilterKey>('name');
@@ -81,17 +85,26 @@ export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) 
   const currentFilterOption =
     SEARCH_FILTER_OPTIONS.find((opt) => opt.value === filter) ?? SEARCH_FILTER_OPTIONS[0];
 
+  const runSearch = (query: string, nextFilter: SearchFilterKey) => {
+    setActiveQuery(query.trim());
+    setActiveFilter(nextFilter);
+    setPage(1);
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setActiveQuery(inputValue.trim());
-    setActiveFilter(filter);
-    setPage(1);
+    runSearch(inputValue, filter);
+  };
+
+  const handleSuggestion = (term: string) => {
+    setInputValue(term);
+    setFilter('name');
+    runSearch(term, 'name');
   };
 
   const handleClearSearch = () => {
     setInputValue('');
-    setActiveQuery('');
-    setPage(1);
+    runSearch('', filter);
   };
 
   const handleAdd = async (book: Book) => {
@@ -103,10 +116,23 @@ export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) 
       }
       addedTimerRef.current = window.setTimeout(() => {
         setJustAddedId(null);
-      }, 1200);
+      }, 1400);
     } catch {
       // Error message is exposed via cartError from CartContext
     }
+  };
+
+  const handleQty = async (bookId: string, qty: number) => {
+    try {
+      await updateQuantity(bookId, qty);
+    } catch {
+      // Error message is exposed via cartError from CartContext
+    }
+  };
+
+  const goToPage = (nextPage: number) => {
+    setPage(nextPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const isSafeHttpUrl = (url: string) => /^https?:\/\//i.test(url);
@@ -114,51 +140,78 @@ export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) 
   return (
     <section className="search-section" aria-label="Busca de livros">
       <div className="hero-card">
+        <div className="hero-glow" aria-hidden="true" />
         <div className="hero-copy">
-          <h1>Monte sua lista para a 28ª Festa do Livro da USP</h1>
+          <span className="hero-eyebrow">
+            <Sparkles size={14} aria-hidden="true" />
+            28ª Festa do Livro da USP
+          </span>
+          <h1>Encontre seus livros e monte a lista perfeita</h1>
           <p>
-            Busque diretamente no catálogo oficial da Edusp, confira os preços com desconto e
-            organize seu carrinho agrupado por editora.
+            Busque no catálogo oficial da Edusp, compare preços com desconto e organize tudo por
+            editora antes de ir à feira.
           </p>
         </div>
 
         <form className="search-form" onSubmit={handleSubmit} role="search">
-          <div className="search-field-group">
-            <label htmlFor="search-filter" className="visually-hidden">
-              Filtrar busca por
-            </label>
-            <select
-              id="search-filter"
-              className="search-select"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value as SearchFilterKey)}
-            >
-              {SEARCH_FILTER_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-
+          <div className="search-bar">
             <label htmlFor="search-query" className="visually-hidden">
               Termo de busca
             </label>
-            <div className="search-input-wrap">
-              <Search size={18} className="search-input-icon" aria-hidden="true" />
-              <input
-                id="search-query"
-                type="search"
-                className="search-input"
-                enterKeyHint="search"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                placeholder={currentFilterOption.placeholder}
-              />
-            </div>
-
-            <button type="submit" className="btn btn-primary search-submit">
+            <Search size={20} className="search-input-icon" aria-hidden="true" />
+            <input
+              id="search-query"
+              type="search"
+              className="search-input"
+              enterKeyHint="search"
+              autoComplete="off"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={currentFilterOption.placeholder}
+            />
+            {inputValue && (
+              <button
+                type="button"
+                className="search-clear"
+                aria-label="Limpar campo de busca"
+                onClick={() => setInputValue('')}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            )}
+            <button type="submit" className="btn btn-accent search-submit">
               Buscar
             </button>
+          </div>
+
+          <fieldset className="filter-chips">
+            <legend className="visually-hidden">Buscar por</legend>
+            {SEARCH_FILTER_OPTIONS.map((opt) => (
+              <label key={opt.value} className="chip">
+                <input
+                  type="radio"
+                  name="search-filter"
+                  value={opt.value}
+                  checked={filter === opt.value}
+                  onChange={() => setFilter(opt.value)}
+                />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+          </fieldset>
+
+          <div className="suggestions">
+            <span className="suggestions-label">Sugestões:</span>
+            {SUGGESTIONS.map((term) => (
+              <button
+                key={term}
+                type="button"
+                className="suggestion"
+                onClick={() => handleSuggestion(term)}
+              >
+                {term}
+              </button>
+            ))}
           </div>
         </form>
       </div>
@@ -176,8 +229,7 @@ export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) 
                 </>
               ) : (
                 <>
-                  Exibindo catálogo completo ·{' '}
-                  <strong>{meta.total.toLocaleString('pt-BR')}</strong> livros disponíveis
+                  Catálogo completo · <strong>{meta.total.toLocaleString('pt-BR')}</strong> livros
                 </>
               )}
             </span>
@@ -186,7 +238,8 @@ export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) 
 
         {activeQuery && (
           <button type="button" className="btn btn-ghost btn-sm" onClick={handleClearSearch}>
-            Limpar busca
+            <X size={14} aria-hidden="true" />
+            <span>Limpar busca</span>
           </button>
         )}
       </div>
@@ -204,17 +257,26 @@ export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) 
       )}
 
       {loading ? (
-        <div className="loading-state" role="status" aria-live="polite">
-          <Loader2 size={28} className="spin" aria-hidden="true" />
-          <p>Consultando livros na Festa do Livro da USP...</p>
+        <div className="books-grid" role="status" aria-label="Carregando livros">
+          {Array.from({ length: SKELETON_COUNT }, (_, i) => (
+            <div key={i} className="book-card skeleton-card" aria-hidden="true">
+              <div className="skeleton skeleton-cover" />
+              <div className="skeleton-body">
+                <div className="skeleton skeleton-line skeleton-line-sm" />
+                <div className="skeleton skeleton-line" />
+                <div className="skeleton skeleton-line skeleton-line-md" />
+                <div className="skeleton skeleton-line skeleton-line-price" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : books.length === 0 ? (
         <div className="empty-state">
-          <BookMarked size={36} aria-hidden="true" />
+          <span className="empty-icon" aria-hidden="true">
+            <BookMarked size={32} />
+          </span>
           <h2>Nenhum livro encontrado</h2>
-          <p>
-            Tente outro termo ou mude o filtro (Título, Autor, Editora, Assunto ou ISBN).
-          </p>
+          <p>Tente outro termo ou mude o filtro (Título, Autor, Editora, Assunto ou ISBN).</p>
         </div>
       ) : (
         <>
@@ -225,17 +287,27 @@ export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) 
               const isJustAdded = justAddedId === book.id;
 
               return (
-                <article key={book.id} className="book-card">
-                  <div className="book-card-top">
-                    <div className="book-badges">
-                      <span className="publisher-badge">
-                        <Building2 size={13} aria-hidden="true" />
-                        {book.publisher}
-                      </span>
-                      {discountPct !== null && (
-                        <span className="discount-badge">-{discountPct}%</span>
-                      )}
-                    </div>
+                <article key={book.id} className={`book-card ${qtyInCart > 0 ? 'in-cart' : ''}`}>
+                  <button
+                    type="button"
+                    className="book-card-cover"
+                    onClick={() => onSelectBook(book)}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  >
+                    <BookCover
+                      title={book.name}
+                      publisher={book.publisher}
+                      authors={book.authors}
+                      size="md"
+                    />
+                    {discountPct !== null && (
+                      <span className="discount-badge">-{discountPct}%</span>
+                    )}
+                  </button>
+
+                  <div className="book-card-body">
+                    <span className="publisher-badge">{book.publisher}</span>
 
                     <h2 className="book-title">
                       <button
@@ -247,70 +319,80 @@ export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) 
                       </button>
                     </h2>
 
-                    <p className="book-authors">
-                      <UserPen size={14} aria-hidden="true" />
-                      <span>{book.authors}</span>
-                    </p>
+                    <p className="book-authors">{book.authors}</p>
 
                     {book.subject && <p className="book-subject">{book.subject}</p>}
-                  </div>
 
-                  <div className="book-card-footer">
-                    <div className="book-pricing">
-                      {book.originalPrice > 0 && book.originalPrice > book.unitPrice && (
-                        <span className="price-original">{formatBRL(book.originalPrice)}</span>
-                      )}
-                      <span className="price-discount">
-                        {book.unitPrice > 0
-                          ? formatBRL(book.unitPrice)
-                          : book.priceDiscount || book.price || 'Preço sob consulta'}
-                      </span>
-                    </div>
-
-                    <div className="book-actions">
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => onSelectBook(book)}
-                      >
-                        Detalhes
-                      </button>
-
-                      {isSafeHttpUrl(book.link) && (
-                        <a
-                          href={book.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="icon-btn"
-                          title="Ver livro no site da editora"
-                          aria-label={`Ver ${book.name} no site da editora`}
-                        >
-                          <ExternalLink size={16} aria-hidden="true" />
-                        </a>
-                      )}
-
-                      <button
-                        type="button"
-                        className={`btn ${qtyInCart > 0 ? 'btn-added' : 'btn-primary'} btn-sm`}
-                        onClick={() => void handleAdd(book)}
-                      >
-                        {isJustAdded ? (
-                          <>
-                            <Check size={15} aria-hidden="true" />
-                            <span>Adicionado!</span>
-                          </>
-                        ) : qtyInCart > 0 ? (
-                          <>
-                            <Plus size={15} aria-hidden="true" />
-                            <span>No carrinho ({qtyInCart})</span>
-                          </>
-                        ) : (
-                          <>
-                            <Plus size={15} aria-hidden="true" />
-                            <span>Adicionar</span>
-                          </>
+                    <div className="book-card-footer">
+                      <div className="book-pricing">
+                        {book.originalPrice > 0 && book.originalPrice > book.unitPrice && (
+                          <span className="price-original">{formatBRL(book.originalPrice)}</span>
                         )}
-                      </button>
+                        <span className="price-discount">
+                          {book.unitPrice > 0
+                            ? formatBRL(book.unitPrice)
+                            : book.priceDiscount || book.price || 'Sob consulta'}
+                        </span>
+                      </div>
+
+                      <div className="book-actions">
+                        {isSafeHttpUrl(book.link) && (
+                          <a
+                            href={book.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="icon-btn"
+                            title="Ver no site da editora"
+                            aria-label={`Ver ${book.name} no site da editora`}
+                          >
+                            <ExternalLink size={16} aria-hidden="true" />
+                          </a>
+                        )}
+
+                        {qtyInCart > 0 ? (
+                          <div className="qty-stepper" role="group" aria-label={`Quantidade de ${book.name}`}>
+                            <button
+                              type="button"
+                              className="qty-btn"
+                              aria-label={`Diminuir quantidade de ${book.name}`}
+                              onClick={() => void handleQty(book.id, qtyInCart - 1)}
+                            >
+                              <Minus size={14} aria-hidden="true" />
+                            </button>
+                            <span className="qty-value" aria-live="polite">
+                              {qtyInCart}
+                            </span>
+                            <button
+                              type="button"
+                              className="qty-btn"
+                              aria-label={`Aumentar quantidade de ${book.name}`}
+                              disabled={qtyInCart >= 99}
+                              onClick={() => void handleQty(book.id, qtyInCart + 1)}
+                            >
+                              <Plus size={14} aria-hidden="true" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            onClick={() => void handleAdd(book)}
+                            aria-label={`Adicionar ${book.name} ao carrinho`}
+                          >
+                            {isJustAdded ? (
+                              <>
+                                <Check size={15} aria-hidden="true" />
+                                <span>Adicionado</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus size={15} aria-hidden="true" />
+                                <span>Adicionar</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </article>
@@ -324,10 +406,7 @@ export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) 
                 type="button"
                 className="btn btn-outline btn-sm"
                 disabled={page <= 1}
-                onClick={() => {
-                  setPage((p) => Math.max(1, p - 1));
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                onClick={() => goToPage(Math.max(1, page - 1))}
               >
                 <ChevronLeft size={16} aria-hidden="true" />
                 <span>Anterior</span>
@@ -342,10 +421,7 @@ export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) 
                 type="button"
                 className="btn btn-outline btn-sm"
                 disabled={page >= meta.last_page}
-                onClick={() => {
-                  setPage((p) => Math.min(meta.last_page, p + 1));
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                onClick={() => goToPage(Math.min(meta.last_page, page + 1))}
               >
                 <span>Próxima</span>
                 <ChevronRight size={16} aria-hidden="true" />
@@ -355,11 +431,11 @@ export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) 
         </>
       )}
 
-      <div className="mobile-cart-cta-spacer" />
-      <button type="button" className="visually-hidden" onClick={onGoToCart}>
-        Ir para o carrinho
-      </button>
+      {totalItems > 0 && (
+        <button type="button" className="floating-cart" onClick={onGoToCart}>
+          Ver carrinho · {totalItems} {totalItems === 1 ? 'livro' : 'livros'}
+        </button>
+      )}
     </section>
   );
 }
-
