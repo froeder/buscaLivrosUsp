@@ -5,11 +5,15 @@ import { CartProvider } from './contexts/CartContext';
 import { Header, type ActiveTab } from './components/Header';
 import { SearchSection } from './components/SearchSection';
 import { CartSection } from './components/CartSection';
+import { BookDetailsPage } from './components/BookDetailsPage';
 import { AuthDialog, type AuthMode } from './components/AuthDialog';
+import type { Book } from './types/book';
 
 function AppShell() {
   const { user, loading: authLoading, isConfigured } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('search');
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [returnTab, setReturnTab] = useState<ActiveTab>('search');
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
 
@@ -18,11 +22,21 @@ function AppShell() {
     setAuthDialogOpen(true);
   };
 
+  const handleChangeTab = (tab: ActiveTab) => {
+    setSelectedBook(null);
+    setActiveTab(tab);
+  };
+
+  const handleSelectBook = (book: Book, from: ActiveTab) => {
+    setReturnTab(from);
+    setSelectedBook(book);
+  };
+
   return (
     <div className="app-shell">
       <Header
         activeTab={activeTab}
-        onChangeTab={setActiveTab}
+        onChangeTab={handleChangeTab}
         onOpenAuth={openAuth}
       />
 
@@ -72,10 +86,32 @@ function AppShell() {
       ) : null}
 
       <main className="container app-main">
-        {activeTab === 'search' ? (
-          <SearchSection onGoToCart={() => setActiveTab('cart')} />
-        ) : (
-          <CartSection onBackToSearch={() => setActiveTab('search')} />
+        {selectedBook && (
+          <BookDetailsPage
+            book={selectedBook}
+            backLabel={
+              returnTab === 'cart' ? 'Voltar para o carrinho' : 'Voltar para a busca'
+            }
+            onBack={() => {
+              setSelectedBook(null);
+              setActiveTab(returnTab);
+            }}
+            onGoToCart={() => handleChangeTab('cart')}
+          />
+        )}
+
+        <div hidden={Boolean(selectedBook) || activeTab !== 'search'}>
+          <SearchSection
+            onGoToCart={() => handleChangeTab('cart')}
+            onSelectBook={(book) => handleSelectBook(book, 'search')}
+          />
+        </div>
+
+        {!selectedBook && activeTab === 'cart' && (
+          <CartSection
+            onBackToSearch={() => handleChangeTab('search')}
+            onSelectBook={(book) => handleSelectBook(book, 'cart')}
+          />
         )}
       </main>
 

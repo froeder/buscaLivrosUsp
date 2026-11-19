@@ -18,9 +18,10 @@ import { calcDiscountPercent, formatBRL } from '../utils/format';
 
 interface SearchSectionProps {
   onGoToCart: () => void;
+  onSelectBook: (book: Book) => void;
 }
 
-export function SearchSection({ onGoToCart }: SearchSectionProps) {
+export function SearchSection({ onGoToCart, onSelectBook }: SearchSectionProps) {
   const { addBook, getItemQuantity, error: cartError } = useCart();
 
   const [inputValue, setInputValue] = useState('');
@@ -236,7 +237,15 @@ export function SearchSection({ onGoToCart }: SearchSectionProps) {
                       )}
                     </div>
 
-                    <h2 className="book-title">{book.name}</h2>
+                    <h2 className="book-title">
+                      <button
+                        type="button"
+                        className="book-title-btn"
+                        onClick={() => onSelectBook(book)}
+                      >
+                        {book.name}
+                      </button>
+                    </h2>
 
                     <p className="book-authors">
                       <UserPen size={14} aria-hidden="true" />
@@ -259,6 +268,14 @@ export function SearchSection({ onGoToCart }: SearchSectionProps) {
                     </div>
 
                     <div className="book-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => onSelectBook(book)}
+                      >
+                        Detalhes
+                      </button>
+
                       {isSafeHttpUrl(book.link) && (
                         <a
                           href={book.link}

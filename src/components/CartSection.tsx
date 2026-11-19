@@ -9,13 +9,15 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
+import type { Book } from '../types/book';
 import { formatBRL } from '../utils/format';
 
 interface CartSectionProps {
   onBackToSearch: () => void;
+  onSelectBook: (book: Book) => void;
 }
 
-export function CartSection({ onBackToSearch }: CartSectionProps) {
+export function CartSection({ onBackToSearch, onSelectBook }: CartSectionProps) {
   const {
     groupedByPublisher,
     totalItems,
@@ -138,7 +140,15 @@ export function CartSection({ onBackToSearch }: CartSectionProps) {
                   {group.items.map((item) => (
                     <li key={item.id} className="cart-item">
                       <div className="cart-item-info">
-                        <h3>{item.name}</h3>
+                        <h3>
+                          <button
+                            type="button"
+                            className="book-title-btn"
+                            onClick={() => onSelectBook(item)}
+                          >
+                            {item.name}
+                          </button>
+                        </h3>
                         <p className="cart-item-authors">{item.authors}</p>
                         <div className="cart-item-unit-price">
                           {item.originalPrice > item.unitPrice && (
