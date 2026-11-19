@@ -21,7 +21,7 @@ interface SearchSectionProps {
 }
 
 export function SearchSection({ onGoToCart }: SearchSectionProps) {
-  const { addBook, getItemQuantity } = useCart();
+  const { addBook, getItemQuantity, error: cartError } = useCart();
 
   const [inputValue, setInputValue] = useState('');
   const [filter, setFilter] = useState<SearchFilterKey>('name');
@@ -94,14 +94,18 @@ export function SearchSection({ onGoToCart }: SearchSectionProps) {
   };
 
   const handleAdd = async (book: Book) => {
-    await addBook(book);
-    setJustAddedId(book.id);
-    if (addedTimerRef.current !== null) {
-      window.clearTimeout(addedTimerRef.current);
+    try {
+      await addBook(book);
+      setJustAddedId(book.id);
+      if (addedTimerRef.current !== null) {
+        window.clearTimeout(addedTimerRef.current);
+      }
+      addedTimerRef.current = window.setTimeout(() => {
+        setJustAddedId(null);
+      }, 1200);
+    } catch {
+      // Error message is exposed via cartError from CartContext
     }
-    addedTimerRef.current = window.setTimeout(() => {
-      setJustAddedId(null);
-    }, 1200);
   };
 
   const isSafeHttpUrl = (url: string) => /^https?:\/\//i.test(url);
@@ -185,6 +189,12 @@ export function SearchSection({ onGoToCart }: SearchSectionProps) {
           </button>
         )}
       </div>
+
+      {cartError && (
+        <div className="alert-error" role="alert">
+          {cartError}
+        </div>
+      )}
 
       {error && (
         <div className="alert-error" role="alert">

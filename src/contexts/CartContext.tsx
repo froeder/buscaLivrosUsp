@@ -59,6 +59,46 @@ interface CartContextValue {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
+function mapFirestoreError(err: unknown): string {
+  const code =
+    typeof err === 'object' && err !== null && 'code' in err
+      ? String((err as { code?: unknown }).code)
+      : '';
+
+  switch (code) {
+    case 'permission-denied':
+      return 'Permissão negada no Firestore (permission-denied). Publique as regras do arquivo firestore.rules no Firebase Console (Firestore Database → Regras).';
+    case 'not-found':
+      return 'Banco Firestore (default) não encontrado no projeto. Crie o Firestore Database no Firebase Console.';
+    case 'unavailable':
+      return 'Firestore indisponível no momento. Verifique sua conexão com a internet.';
+    case 'unauthenticated':
+      return 'Sessão expirada. Faça login novamente para sincronizar seu carrinho.';
+    default:
+      return code
+        ? `Não foi possível sincronizar seu carrinho com o Firebase (${code}).`
+        : 'Não foi possível sincronizar seu carrinho com o Firebase.';
+  }
+}
+
+function buildFirestorePayload(book: Book, quantity: number) {
+  return {
+    id: book.id.slice(0, 200),
+    name: book.name.slice(0, 500),
+    authors: book.authors.slice(0, 500),
+    publisher: book.publisher.slice(0, 200),
+    isbn: book.isbn.slice(0, 100),
+    subject: book.subject.slice(0, 300),
+    price: book.price.slice(0, 50),
+    priceDiscount: book.priceDiscount.slice(0, 50),
+    unitPrice: book.unitPrice,
+    originalPrice: book.originalPrice,
+    link: book.link.slice(0, 1000),
+    quantity: Math.min(99, Math.max(1, Math.trunc(quantity))),
+    addedAt: serverTimestamp(),
+  };
+}
+
 function readLocalCart(): CartItem[] {
   try {
     const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -122,21 +162,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
                 quantity: Math.min(99, currentQty + item.quantity),
               });
             } else {
-              batch.set(itemRef, {
-                id: item.id,
-                name: item.name,
-                authors: item.authors,
-                publisher: item.publisher,
-                isbn: item.isbn,
-                subject: item.subject,
-                price: item.price,
-                priceDiscount: item.priceDiscount,
-                unitPrice: item.unitPrice,
-                originalPrice: item.originalPrice,
-                link: item.link,
-                quantity: Math.min(99, Math.max(1, item.quantity)),
-                addedAt: serverTimestamp(),
-              });
+              batch.set(itemRef, buildFirestorePayload(item, item.quantity));
             }
           }
           await batch.commit();
@@ -176,7 +202,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       },
       (err) => {
         console.error('Erro ao escutar carrinho no Firestore:', err);
-        setError('Não foi possível sincronizar seu carrinho com o Firebase.');
+        setError(mapFirestoreError(err));
         setLoading(false);
       },
     );
@@ -200,29 +226,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addBook = useCallback(
     async (book: Book) => {
       if (user && db) {
-        const itemRef = doc(db, 'users', user.uid, 'cartItems', book.id);
-        const currentQty = itemQuantityMap.get(book.id) ?? 0;
+        try {
+          const itemRef = doc(db, 'users', user.uid, 'cartItems', book.id);
+          const currentQty = itemQuantityMap.get(book.id) ?? 0;
 
-        if (currentQty > 0) {
-          await updateDoc(itemRef, {
-            quantity: Math.min(99, currentQty + 1),
-          });
-        } else {
-          await setDoc(itemRef, {
-            id: book.id,
-            name: book.name,
-            authors: book.authors,
-            publisher: book.publisher,
-            isbn: book.isbn,
-            subject: book.subject,
-            price: book.price,
-            priceDiscount: book.priceDiscount,
-            unitPrice: book.unitPrice,
-            originalPrice: book.originalPrice,
-            link: book.link,
-            quantity: 1,
-            addedAt: serverTimestamp(),
-          });
+          if (currentQty > 0) {
+            await updateDoc(itemRef, {
+              quantity: Math.min(99, currentQty + 1),
+            });
+          } else {
+            await setDoc(itemRef, buildFirestorePayload(book, 1));
+          }
+          setError(null);
+        } catch (err) {
+          console.error('Erro ao adicionar livro no Firestore:', err);
+          const msg = mapFirestoreError(err);
+          setError(msg);
+          throw new Error(msg);
         }
         return;
       }
