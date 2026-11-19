@@ -1,0 +1,159 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structure
+// for the 28ª Festa do Livro da USP shopping list app:
+//
+// Collection: /users/{userId}/cartItems
+// Document ID: {itemId} (matches the book's `id` field)
+// Access: Strictly private to the authenticated owner (request.auth.uid == userId).
+// Fields:
+//   - id: string (required, 1..200 chars, must equal itemId, immutable on update)
+//   - name: string (required, 1..500 chars) - Book title
+//   - authors: string (required, 0..500 chars) - Book author(s)
+//   - publisher: string (required, 1..200 chars) - Publisher name
+//   - isbn: string (optional, 0..100 chars) - Book ISBN
+//   - subject: string (optional, 0..300 chars) - Subject / category
+//   - price: string (optional, 0..50 chars) - Formatted original price
+//   - priceDiscount: string (optional, 0..50 chars) - Formatted discounted price
+//   - unitPrice: number (int or float, required, 0..100000) - Numeric unit price
+//   - originalPrice: number (int or float, optional, 0..100000) - Numeric original price
+//   - link: string (optional, 0..1000 chars) - Publisher or catalog URL
+//   - quantity: int (required, 1..99) - Quantity in shopping list
+//   - addedAt: timestamp (required, immutable on update; supports serverTimestamp on create)
+//
+// All other collections and paths (including /users/{userId}) are denied by default.
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    // Check if the request is from an authenticated user
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the authenticated user owns the path scoped by userId
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Validate that the incoming document contains only allowed fields
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Validate that the incoming document contains all required fields
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Validate required string field type and length bounds
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+             request.resource.data[field].size() >= minLen &&
+             request.resource.data[field].size() <= maxLen;
+    }
+
+    // Validate optional string field (if present, must be a string within length bounds)
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    // Validate numeric price value (int or float, 0..100000; also rejects NaN/Infinity)
+    function isValidPrice(val) {
+      return (val is int || val is float) &&
+             val >= 0 &&
+             val <= 100000;
+    }
+
+    // Validate optional numeric price field
+    function isValidOptionalPrice(field) {
+      return !(field in request.resource.data) ||
+             isValidPrice(request.resource.data[field]);
+    }
+
+    // Ensure specified immutable fields are not modified or removed on update
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators (Used in BOTH create and update)
+    // ===============================================================
+
+    function isValidCartItem(itemId) {
+      let data = request.resource.data;
+      return hasOnlyAllowedFields([
+               'id',
+               'name',
+               'authors',
+               'publisher',
+               'isbn',
+               'subject',
+               'price',
+               'priceDiscount',
+               'unitPrice',
+               'originalPrice',
+               'link',
+               'quantity',
+               'addedAt'
+             ]) &&
+             hasRequiredFields([
+               'id',
+               'name',
+               'authors',
+               'publisher',
+               'unitPrice',
+               'quantity',
+               'addedAt'
+             ]) &&
+             isValidString('id', 1, 200) &&
+             data.id == itemId &&
+             isValidString('name', 1, 500) &&
+             isValidString('authors', 0, 500) &&
+             isValidString('publisher', 1, 200) &&
+             isValidOptionalString('isbn', 0, 100) &&
+             isValidOptionalString('subject', 0, 300) &&
+             isValidOptionalString('price', 0, 50) &&
+             isValidOptionalString('priceDiscount', 0, 50) &&
+             isValidPrice(data.unitPrice) &&
+             isValidOptionalPrice('originalPrice') &&
+             isValidOptionalString('link', 0, 1000) &&
+             data.quantity is int &&
+             data.quantity >= 1 &&
+             data.quantity <= 99 &&
+             data.addedAt is timestamp;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // User's private book shopping list items
+    match /users/{userId}/cartItems/{itemId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidCartItem(itemId);
+      allow update: if isOwner(userId) &&
+                       isValidCartItem(itemId) &&
+                       areImmutableFieldsUnchanged(['id', 'addedAt']);
+      allow delete: if isOwner(userId);
+    }
+
+    // Default deny for all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
